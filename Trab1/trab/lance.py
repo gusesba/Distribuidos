@@ -1,5 +1,8 @@
-import sys,os,pika,threading,datetime
-
+import sys,os,pika,threading,datetime,json
+import base64
+from Crypto.Signature import pkcs1_15
+from Crypto.Hash import SHA256
+from Crypto.PublicKey import RSA
 
 leiloes = []
 
@@ -36,6 +39,22 @@ def adicionar_leiloes():
     channel.basic_consume(queue=queue_name, on_message_callback=callback, auto_ack=True)
     channel.start_consuming()
 
+def verificar_assinatura(valor, assinatura_b64, cliente):
+    try:
+        public_path = os.path.join("chaves", cliente, "public.pem")
+
+        with open(public_path, "rb") as f:
+            key = RSA.import_key(f.read())
+
+        h = SHA256.new(str(valor).encode())
+
+        assinatura = base64.b64decode(assinatura_b64)
+
+        pkcs1_15.new(key).verify(h, assinatura)
+        return True
+    except (ValueError, TypeError, FileNotFoundError):
+        return False
+
 def escutar_lances():
     connection = pika.BlockingConnection(
     pika.ConnectionParameters(host='localhost'))
@@ -47,10 +66,12 @@ def escutar_lances():
     channel.queue_bind(exchange='lance', queue=queue_name, routing_key='publicar')
 
     def callback(ch, method, properties, body):
-        lance = eval(body.decode())
+        lance = json.loads(body.decode())
         leilao_id = lance['id']
 
         leilao_idx = next((idx for idx, l in enumerate(leiloes) if l['id'] == leilao_id), None)
+
+        assinatura_ok = verificar_assinatura(lance["valor"], lance["assinatura"], lance["cliente"])
         
         if leilao_idx is None:
             return
@@ -61,13 +82,15 @@ def escutar_lances():
         cliente = leilao.get('cliente', '-')
         valor = leilao.get('valor', '-')
 
-        if(lance['valor'] > leilao['valor'] and status != 'finalizado'):
+        if(lance['valor'] > leilao['valor'] and status != 'finalizado' and assinatura_ok):
             leilao['valor'] = lance['valor']
             leilao['cliente'] = lance['cliente']
-
-        if(status == 'finalizado'):
+        else:
             leilao['valor'] = valor
             leilao['cliente'] = cliente
+            leilao['status'] = status
+
+        if(status == 'finalizado'):
             leilao['status'] = 'finalizado'
 
         channel.basic_publish(
@@ -90,7 +113,7 @@ def remover_leiloes():
 
     def callback(ch, method, properties, body):
         global leiloes
-        leilao_final = eval(body.decode(), {"datetime": datetime})  # recebe o leilão finalizado
+        leilao_final = eval(body.decode(), {"datetime": datetime}) 
         leilao_id = leilao_final['id']
 
         leilao = next((l for l in leiloes if l['id'] == leilao_id), None)

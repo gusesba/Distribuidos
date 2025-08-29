@@ -1,8 +1,13 @@
-import sys,os,pika,threading
+import json
+import sys,os,pika,threading,base64
+from Crypto.PublicKey import RSA
+from Crypto.Signature import pkcs1_15
+from Crypto.Hash import SHA256
+from Crypto.PublicKey import RSA
 
 leiloes = []
 ativos = []
-cliente = ""  # Nome do cliente, pode ser modificado conforme necessário
+cliente = ""
 
 def main():
     if len(sys.argv) < 2:
@@ -11,6 +16,9 @@ def main():
 
     global cliente
     cliente = sys.argv[1]
+
+    gerar_chaves(cliente)
+
     t1 = threading.Thread(target=adicionar_leiloes)
     t1.start()
     
@@ -18,6 +26,29 @@ def main():
     t2.start()
 
     t2.join()
+
+def gerar_chaves(cliente):
+    pasta = os.path.join("chaves", cliente)
+    os.makedirs(pasta, exist_ok=True)
+
+    private_path = os.path.join(pasta, "private.pem")
+    public_path = os.path.join(pasta, "public.pem")
+
+    if not os.path.exists(private_path) or not os.path.exists(public_path):
+        print("Gerando par de chaves para", cliente)
+        key = RSA.generate(2048)
+
+        private_key = key.export_key()
+        with open(private_path, "wb") as f:
+            f.write(private_key)
+
+        public_key = key.publickey().export_key()
+        with open(public_path, "wb") as f:
+            f.write(public_key)
+
+        print("Chaves geradas em", pasta)
+    else:
+        print("Chaves já existentes em", pasta)
 
 def adicionar_leiloes():
     connection = pika.BlockingConnection(
@@ -45,17 +76,14 @@ def mostrar_leiloes():
     if not leiloes:
         print("Nenhum leilão ativo no momento.")
     else:
-        # Cabeçalho da tabela
         print(f"{'Nº':<5}{'Descrição':<30}{'Valor':<10}{'Último Lance':<20}{'Status':<10}")
         print("-" * 80)
 
         for i, leilao in enumerate(leiloes):
             valor = f"R${leilao['valor']:.2f}" if 'valor' in leilao and leilao['valor'] is not None else "-"
-            # cliente é string, não precisa de :.2f
             ultimo_lance = leilao['cliente'] if 'cliente' in leilao and leilao['cliente'] is not None else "-"
             status = leilao['status'] if 'status' in leilao else "ativo"
             print(f"{i:<5}{leilao['descricao']:<30}{valor:<10}{ultimo_lance:<20}{status:<10}")
-
 
     print("=" * 80)
     print("Digite: <numero_do_leilao> <valor_do_lance>")
@@ -88,12 +116,25 @@ def aguarda_user():
 
         publicar_lance(leiloes[idx], valor)
 
+def assinar_valor(valor, cliente):
+    private_path = os.path.join("chaves", cliente, "private.pem")
+
+    with open(private_path, "rb") as f:
+        key = RSA.import_key(f.read())
+
+    message = str(valor).encode()
+    h = SHA256.new(message)
+
+    signature = pkcs1_15.new(key).sign(h)
+
+    return base64.b64encode(signature).decode()
+
 def publicar_lance(leilao, valor):
     connection = pika.BlockingConnection(
     pika.ConnectionParameters(host='localhost'))
     channel = connection.channel()
     channel.exchange_declare(exchange='lance', exchange_type='direct')
-    channel.basic_publish(exchange='lance', routing_key='publicar', body=str({"id": leilao['id'], "valor": valor, "cliente": cliente}))
+    channel.basic_publish(exchange='lance', routing_key='publicar', body=json.dumps({"id": leilao['id'], "valor": valor, "cliente": cliente, "assinatura": assinar_valor(valor, cliente)}))
     if(leilao['id'] in ativos):
         return
     threading.Thread(target=acompanhar_leilao, args=(leilao['id'],)).start()
