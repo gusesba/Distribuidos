@@ -1,0 +1,52 @@
+Microsoft Windows [versão 10.0.19045.6396]
+(c) Microsoft Corporation. Todos os direitos reservados.
+
+C:\trabalho2>python agrawala.py PeerD
+[ricart.PeerD] registrado no nameserver.
+[ricart.PeerD] Coordenador None não encontrado ou inativo. Iniciando eleição.
+[ricart.PeerD] Iniciando eleição Bully...
+[ricart.PeerD] Eu sou o novo coordenador!
+
+Estado atual: RELEASED
+Digite [p] para pedir o recurso ou [q] para sair: p
+[ricart.PeerD] Peers atualizados: ['ricart.Name', 'ricart.PeerA', 'ricart.PeerB', 'ricart.PeerC']
+[ricart.PeerD] Pedindo recurso...
+[ricart.PeerD] Falha ao enviar heartbeat para ricart.Name: the calling thread is not the owner of this proxy, create a new proxy in this thread or transfer ownership.
+[ricart.PeerD] Peer ricart.Name removido. Peers restantes: ['ricart.PeerA', 'ricart.PeerB', 'ricart.PeerC']
+Exception in thread Thread-6 (send_heartbeats_periodically):
+Traceback (most recent call last):
+  File "C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1043, in _bootstrap_inner
+    self.run()
+    ~~~~~~~~^^
+  File "C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 994, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\trabalho2\agrawala.py", line 313, in send_heartbeats_periodically
+    process.send_heartbeat()
+    ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\trabalho2\agrawala.py", line 65, in send_heartbeat
+    for peer_name, peer_proxy in self.active_peers.items():
+                                 ~~~~~~~~~~~~~~~~~~~~~~~^^
+RuntimeError: dictionary changed size during iteration
+[ricart.PeerD] Peer ricart.PeerA inativo (timeout de heartbeat). Removendo.
+[ricart.PeerD] Peer ricart.PeerA removido. Peers restantes: ['ricart.PeerB', 'ricart.PeerC']
+[ricart.PeerD] Peer ricart.PeerB inativo (timeout de heartbeat). Removendo.
+[ricart.PeerD] Peer ricart.PeerB removido. Peers restantes: ['ricart.PeerC']
+[ricart.PeerD] Peer ricart.PeerC inativo (timeout de heartbeat). Removendo.
+[ricart.PeerD] Peer ricart.PeerC removido. Peers restantes: []
+Traceback (most recent call last):
+  File "C:\trabalho2\agrawala.py", line 383, in <module>
+    main()
+    ~~~~^^
+  File "C:\trabalho2\agrawala.py", line 380, in main
+    interface(process)
+    ~~~~~~~~~^^^^^^^^^
+  File "C:\trabalho2\agrawala.py", line 335, in interface
+    process.request_resource()
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\trabalho2\agrawala.py", line 107, in request_resource
+    for peer_name, peer_proxy in self.active_peers.items():
+                                 ~~~~~~~~~~~~~~~~~~~~~~~^^
+RuntimeError: dictionary changed size during iteration
+
+C:\trabalho2>
