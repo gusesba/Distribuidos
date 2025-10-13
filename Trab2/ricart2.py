@@ -74,7 +74,6 @@ class RicartAgrawala:
             ultimo_heartbeat = self.peersHeartbeat.get(uri, 0)
             if agora - ultimo_heartbeat > HEARTBEAT_TIMEOUT:
                 print(f"[{self.pid}] Peer {uri} inativo, ignorando.")
-                self.replies += 1
                 return
             try:
                 with Pyro5.api.Proxy(uri) as peer:
@@ -82,7 +81,8 @@ class RicartAgrawala:
                     peer.request(self.timestamp, self.pid)
             except Exception as e:
                 #print(f"[{self.pid}] Peer {uri} não disponível ou timeout ({e})")
-                self.replies += 1
+                #self.replies += 1
+                pass
 
         threads = []
         for uri in self.peers:
@@ -155,6 +155,21 @@ class RicartAgrawala:
         print(f"Peers ativos ({len(ativos)}): {', '.join(ativos) if ativos else 'Nenhum'}")
         print("===========================\n")
 
+    def monitorar_peers(self):
+        while True:
+            agora = time.time()
+            i = 0
+            while i < len(self.peers):
+                uri = self.peers[i]
+                ultimo_hb = self.peersHeartbeat.get(uri, 0)
+                if agora - ultimo_hb > HEARTBEAT_TIMEOUT:
+                    self.peers.pop(i)
+                    self.peersNames.pop(i)
+                    self.peersHeartbeat.pop(uri, None)
+                else:
+                    i += 1
+            time.sleep(1)
+
 
 def input_timeout(prompt, timeout):
     q = queue.Queue()
@@ -209,6 +224,8 @@ def main():
         ns.register(pid, uri)
     print(f"[{pid}] registrado no nameserver como {uri}.")
 
+    t = threading.Thread(target=process.monitorar_peers, daemon=True)
+    t.start()
 
     t = threading.Thread(target=process.enviar_heartbeat, daemon=True)
     t.start()
